@@ -13,7 +13,6 @@ $("#run").onclick=async()=>{
  let output,videoSource,audioSource,video;
  try{
   say("Ładuję nowy silnik MP4…");
- try{
   const MB=await import("https://esm.sh/mediabunny");
   const {Output,Mp4OutputFormat,BufferTarget,CanvasSource,AudioBufferSource,Quality}=MB;
   say("Dekoduję MP3…");const ac=new AudioContext();const audioBuffer=await ac.decodeAudioData(await af.arrayBuffer());const duration=audioBuffer.duration;
