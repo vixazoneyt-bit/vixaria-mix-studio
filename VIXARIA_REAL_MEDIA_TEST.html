@@ -79,7 +79,7 @@ $("#run").onclick=async()=>{
   say("Kodowanie obrazu trwa. Pozostaw Chrome otwarty i ekran włączony.");
   while(!videoDone){await new Promise(r=>setTimeout(r,250));}
   cancelAnimationFrame(raf);
-  await Promise.all([ve.flush(),ae.flush()]);
+  await ve.flush();
   ve.close();ae.close();ve=ae=null;
   say("Składam plik MP4…");
   muxer.finalize();blob=new Blob([target.buffer],{type:"video/mp4"});
