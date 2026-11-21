@@ -3,10 +3,11 @@ const DB="vixaria-studio-db",STORE="projects";let db,project=null,mp3Blob=null,v
 const req=(r)=>new Promise((ok,no)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 function openDB(){return new Promise((ok,no)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:"id"});r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
 async function allProjects(){return req(db.transaction(STORE).objectStore(STORE).getAll())}
-async function put(){if(!project)return;project.updated=Date.now();await req(db.transaction(STORE,"readwrite").objectStore(STORE).put(project));renderProjects();$("#projectStatus").textContent="Zapisano automatycznie · "+new Date().toLocaleTimeString()}
-async function loadProject(p){project=p;$("#projectName").value=p.name;$("#fade").value=p.fade??8;$("#fadeVal").textContent=$("#fade").value;$("#normalize").checked=p.normalize!==false;$("#bitrate").value=p.bitrate||320;$("#audioPulse").checked=p.audioPulse!==false;$("#pulseStrength").value=p.pulseStrength??5;$("#pulseVal").textContent=$("#pulseStrength").value;$("#slowZoom").checked=!!p.slowZoom;$("#lightPulse").checked=!!p.lightPulse;$("#neonEqualizer").checked=!!p.neonEqualizer;renderTracks();renderOutputs();if(p.animation){setVideoPreview(p.animation)}else if(p.stillImage){setImagePreview(p.stillImage)}else{$("#reactiveControls").classList.add("hidden");$("#videoInfo").textContent="Nie dodano animacji ani obrazu.";$("#preview").classList.add("hidden");$("#imagePreview").classList.add("hidden")}$("#audioStatus").textContent=p.audioOutput?"W projekcie jest gotowy mix MP3.":"Dodaj utwory, aby rozpocząć.";renderProjects()}
+function updateStepChecks(){if(!project)return;const d=[!!project.tracks?.length,!!project.audioOutput||!!project.audioDownloaded,!!(project.animation||project.stillImage),!!project.videoOutput||!!project.videoSaved||!!project.videoDownloaded];d.forEach((v,i)=>{const el=$("#step"+(i+1)+"Check");if(el)el.classList.toggle("done",v)})}
+async function put(){if(!project)return;project.updated=Date.now();await req(db.transaction(STORE,"readwrite").objectStore(STORE).put(project));renderProjects();updateStepChecks();$("#projectStatus").textContent="Zapisano automatycznie · "+new Date().toLocaleTimeString()}
+async function loadProject(p){project=p;$("#projectName").value=p.name;$("#fade").value=p.fade??8;$("#fadeVal").textContent=$("#fade").value;project.normalize=true;project.bitrate=320;renderTracks();renderOutputs();updateStepChecks();if(p.animation){setVideoPreview(p.animation)}else if(p.stillImage){setImagePreview(p.stillImage)}else{$("#videoInfo").textContent="Nie dodano animacji ani obrazu.";$("#preview").classList.add("hidden");$("#imagePreview").classList.add("hidden")}$("#audioStatus").textContent=p.audioOutput?"W projekcie jest gotowy mix MP3.":"Dodaj utwory, aby rozpocząć.";renderProjects()}
 async function renderProjects(){let ps=await allProjects();$("#projects").innerHTML="";ps.sort((a,b)=>b.updated-a.updated).forEach(p=>{let d=document.createElement("div");d.className="project row between";let label=document.createElement("button");label.className="ghost";label.textContent=p.name+" · "+(p.tracks?.length||0)+" utworów";label.onclick=()=>loadProject(p);let del=document.createElement("button");del.className="secondary";del.textContent="Usuń";del.onclick=async()=>{if(confirm("Usunąć projekt wraz z zapisanymi plikami źródłowymi?")){await req(db.transaction(STORE,"readwrite").objectStore(STORE).delete(p.id));if(project?.id===p.id)project=null;renderProjects()}};d.append(label,del);$("#projects").append(d)})}
-function newProject(){project={id:crypto.randomUUID(),name:"Nowy mix",tracks:[],fade:8,normalize:true,bitrate:320,animation:null,stillImage:null,audioOutput:null,videoOutput:null,audioDownloaded:false,audioPulse:true,pulseStrength:5,slowZoom:false,lightPulse:false,neonEqualizer:false};$("#projectName").value=project.name;put();renderTracks();renderOutputs()}
+function newProject(){project={id:crypto.randomUUID(),name:"Nowy mix",tracks:[],fade:8,normalize:true,bitrate:320,animation:null,stillImage:null,audioOutput:null,videoOutput:null,audioDownloaded:false,videoSaved:false,videoDownloaded:false};$("#projectName").value=project.name;put();renderTracks();renderOutputs()}
 $("#newProject").onclick=newProject;
 function commitProjectName(){if(!project)return;const value=$("#projectName").value.trim();if(value)project.name=value;else $("#projectName").value=project.name||"Nowy mix";put()}
 $("#projectName").addEventListener("input",()=>{if(!project)return;const value=$("#projectName").value.trim();if(value)project.name=value;clearTimeout(projectNameSaveTimer);projectNameSaveTimer=setTimeout(()=>put(),350)});
@@ -20,8 +21,8 @@ function updateVideoClock(){if(!videoRenderStarted)return;const elapsed=(perform
 function stopVideoClock(){if(videoRenderStarted){updateVideoClock();$('#videoTimerEstimate').textContent='Zakończono · '+$('#videoTimerActual').textContent;videoRenderStarted=0}clearInterval(videoTimerInterval);videoTimerInterval=null}
 function renderTracks(){let box=$("#tracks");box.innerHTML="";if(!project?.tracks?.length){box.textContent="Brak utworów w projekcie."}else project.tracks.forEach((t,i)=>{let d=document.createElement("div");d.className="track";let n=document.createElement("span");n.className="muted";n.textContent=String(i+1).padStart(2,"0");let info=document.createElement("div");let nm=document.createElement("div");nm.className="trackname";nm.textContent=t.name;let mt=document.createElement("div");mt.className="trackmeta";mt.textContent=t.duration?fmt(t.duration):"Czas odczytany podczas eksportu · plik zapisany";info.append(nm,mt);let acts=document.createElement("div");acts.className="row";[["↑",-1],["↓",1],["×",0]].forEach(([s,dir])=>{let b=document.createElement("button");b.className="secondary";b.textContent=s;b.onclick=async()=>{if(dir===0)project.tracks.splice(i,1);else{let j=i+dir;if(j<0||j>=project.tracks.length)return;[project.tracks[i],project.tracks[j]]=[project.tracks[j],project.tracks[i]]}project.audioOutput=null;renderTracks();await put()};acts.append(b)});d.append(n,info,acts);box.append(d)});
 let total=(project?.tracks||[]).reduce((a,t)=>a+(t.duration||0),0)-Math.max(0,(project?.tracks?.length||0)-1)*(+$("#fade").value||0);$("#duration").textContent=project?.tracks?.length?fmt(Math.max(0,total)):"—";$("#makeAudio").disabled=!(project?.tracks?.length)}
-async function saveSettings(){if(!project)return;project.fade=+$("#fade").value;project.normalize=$("#normalize").checked;project.bitrate=+$("#bitrate").value;project.audioOutput=null;await put();renderTracks()}
-$("#fade").oninput=()=>{$("#fadeVal").textContent=$("#fade").value;renderTracks()};["change"].forEach(ev=>{$("#fade").addEventListener(ev,saveSettings);$("#normalize").addEventListener(ev,saveSettings);$("#bitrate").addEventListener(ev,saveSettings)});
+async function saveSettings(){if(!project)return;project.fade=+$("#fade").value;project.normalize=true;project.bitrate=320;project.audioOutput=null;await put();renderTracks()}
+$("#fade").oninput=()=>{$("#fadeVal").textContent=$("#fade").value;renderTracks()};$("#fade").addEventListener("change",saveSettings);
 async function readDuration(file){
  return await new Promise(resolve=>{
   const a=new Audio(),u=URL.createObjectURL(file);let settled=false;
@@ -57,17 +58,13 @@ $("#makeAudio").onclick=async()=>{let btn=$("#makeAudio");btn.disabled=true;$("#
  const sr=decoded[0].sampleRate,ch=2,fade=+project.fade,fadeSamples=decoded.slice(1).map((b,i)=>Math.round(Math.min(fade,decoded[i].duration/2,b.duration/2)*sr));
  let starts=[0];for(let i=1;i<decoded.length;i++)starts[i]=starts[i-1]+decoded[i-1].length-fadeSamples[i-1];
  let total=starts.at(-1)+decoded.at(-1).length,left=new Float32Array(total),right=new Float32Array(total);
- decoded.forEach((b,i)=>{let l=b.getChannelData(0),r=b.numberOfChannels>1?b.getChannelData(1):l,start=starts[i],gain=project.normalize?Math.min(2,.88/peak(b)):1;for(let k=0;k<b.length;k++){let g=gain;if(i>0&&k<fadeSamples[i-1])g*=Math.sin(k/fadeSamples[i-1]*Math.PI/2);if(i<decoded.length-1&&k>b.length-fadeSamples[i])g*=Math.cos((k-(b.length-fadeSamples[i]))/fadeSamples[i]*Math.PI/2);left[start+k]+=l[k]*g;right[start+k]+=r[k]*g}});
- let enc=new lamejs.Mp3Encoder(2,sr,project.bitrate),chunks=[],block=1152;for(let i=0;i<total;i+=block){let n=Math.min(block,total-i),l=new Int16Array(n),r=new Int16Array(n);for(let j=0;j<n;j++){l[j]=Math.max(-32768,Math.min(32767,left[i+j]*32767));r[j]=Math.max(-32768,Math.min(32767,right[i+j]*32767))}let out=enc.encodeBuffer(l,r);if(out.length)chunks.push(new Uint8Array(out));$("#audioBar").style.width=(5+90*(i/total))+"%"}let end=enc.flush();if(end.length)chunks.push(new Uint8Array(end));mp3Blob=new Blob(chunks,{type:"audio/mpeg"});project.audioOutput=mp3Blob;project.audioDuration=total/sr;await put();$("#audioBar").style.width="100%";$("#audioStatus").textContent="Gotowe: "+fmt(total/sr)+", MP3 "+project.bitrate+" kb/s.";$("#downloadAudio").classList.remove("hidden");renderOutputs();
+ decoded.forEach((b,i)=>{let l=b.getChannelData(0),r=b.numberOfChannels>1?b.getChannelData(1):l,start=starts[i],gain=Math.min(2,.88/peak(b));for(let k=0;k<b.length;k++){let g=gain;if(i>0&&k<fadeSamples[i-1])g*=Math.sin(k/fadeSamples[i-1]*Math.PI/2);if(i<decoded.length-1&&k>b.length-fadeSamples[i])g*=Math.cos((k-(b.length-fadeSamples[i]))/fadeSamples[i]*Math.PI/2);left[start+k]+=l[k]*g;right[start+k]+=r[k]*g}});
+ let enc=new lamejs.Mp3Encoder(2,sr,320),chunks=[],block=1152;for(let i=0;i<total;i+=block){let n=Math.min(block,total-i),l=new Int16Array(n),r=new Int16Array(n);for(let j=0;j<n;j++){l[j]=Math.max(-32768,Math.min(32767,left[i+j]*32767));r[j]=Math.max(-32768,Math.min(32767,right[i+j]*32767))}let out=enc.encodeBuffer(l,r);if(out.length)chunks.push(new Uint8Array(out));$("#audioBar").style.width=(5+90*(i/total))+"%"}let end=enc.flush();if(end.length)chunks.push(new Uint8Array(end));mp3Blob=new Blob(chunks,{type:"audio/mpeg"});project.audioOutput=mp3Blob;project.audioDuration=total/sr;await put();$("#audioBar").style.width="100%";$("#audioStatus").textContent="Gotowe: "+fmt(total/sr)+", MP3 "+320+" kb/s.";$("#downloadAudio").classList.remove("hidden");renderOutputs();
  }catch(e){$("#audioStatus").textContent=e.message}finally{btn.disabled=false}};
-function setVideoPreview(file){$("#reactiveControls").classList.add("hidden");if(animURL)URL.revokeObjectURL(animURL);animURL=URL.createObjectURL(file);let v=$("#preview");v.src=animURL;v.classList.remove("hidden");$("#imagePreview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · animacja zapisana w projekcie";$("#makeVideo").disabled=!project?.audioOutput}
-function setImagePreview(file){$("#reactiveControls").classList.remove("hidden");if(imageURL)URL.revokeObjectURL(imageURL);imageURL=URL.createObjectURL(file);let im=$("#imagePreview");im.src=imageURL;im.classList.remove("hidden");$("#preview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · obraz zapisany w projekcie (będzie widoczny przez cały film)";$("#makeVideo").disabled=!project?.audioOutput}
-async function saveVisualSettings(){if(!project)return;project.audioPulse=$("#audioPulse").checked;project.pulseStrength=+$("#pulseStrength").value;project.slowZoom=$("#slowZoom").checked;project.lightPulse=$("#lightPulse").checked;project.neonEqualizer=$("#neonEqualizer").checked;await put()}
-["audioPulse","pulseStrength","slowZoom","lightPulse","neonEqualizer"].forEach(id=>$("#"+id).addEventListener("change",saveVisualSettings));
-$("#pulseStrength").addEventListener("input",()=>{$("#pulseVal").textContent=$("#pulseStrength").value});
+function setVideoPreview(file){if(animURL)URL.revokeObjectURL(animURL);animURL=URL.createObjectURL(file);let v=$("#preview");v.src=animURL;v.classList.remove("hidden");$("#imagePreview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · animacja zapisana w projekcie";$("#makeVideo").disabled=!project?.audioOutput}
+function setImagePreview(file){if(imageURL)URL.revokeObjectURL(imageURL);imageURL=URL.createObjectURL(file);let im=$("#imagePreview");im.src=imageURL;im.classList.remove("hidden");$("#preview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · obraz zapisany w projekcie (będzie widoczny przez cały film)";$("#makeVideo").disabled=!project?.audioOutput}
 $("#videoFile").onchange=async e=>{if(!project)newProject();let f=e.target.files[0];if(!f)return;project.animation=f;project.stillImage=null;project.videoOutput=null;project.videoSaved=false;await put();setVideoPreview(f);e.target.value=""};
 $("#imageFile").onchange=async e=>{if(!project)newProject();let f=e.target.files[0];if(!f)return;if(!f.type.startsWith("image/")){alert("Wybierz plik JPG, PNG lub WEBP.");e.target.value="";return}project.stillImage=f;project.animation=null;project.videoOutput=null;project.videoSaved=false;await put();setImagePreview(f);e.target.value=""};
-$("#pulseStrength").oninput=()=>{$("#pulseVal").textContent=$("#pulseStrength").value};
 
 async function loadMediabunny(){
  if(window.__vixMediabunny)return window.__vixMediabunny;
@@ -98,24 +95,6 @@ async function makeVideoLegacy(){
   $('#downloadVideo').classList.remove('hidden');renderOutputs();
  }finally{if(timer)clearInterval(timer);cancelAnimationFrame(raf);if(rec&&rec.state!=='inactive'){try{rec.stop()}catch{}}if(stream)stream.getTracks().forEach(t=>t.stop());if(ctx)try{await ctx.close()}catch{}if(v.src)URL.revokeObjectURL(v.src);if(stillImg?.src)URL.revokeObjectURL(stillImg.src);v.remove()}
 }
-function drawNeonEqualizer(c,t,beat,strength){
- const mid=540,amp=(10+Math.min(1,beat*5)*145)*(.45+strength*.75),left=80,right=1840,points=180;
- c.save();c.globalCompositeOperation="screen";
- const grad=c.createLinearGradient(left,0,right,0);grad.addColorStop(0,"#ff28c8");grad.addColorStop(.48,"#a64dff");grad.addColorStop(1,"#20dfff");
- c.beginPath();c.moveTo(left,mid);c.lineTo(right,mid);c.strokeStyle="rgba(110,190,255,.22)";c.lineWidth=2;c.stroke();
- const drawWave=(width,alpha,blur)=>{
-  c.beginPath();
-  for(let i=0;i<=points;i++){
-   const x=left+(right-left)*i/points,u=i/points;
-   const envelope=.18+.82*Math.pow(Math.abs(Math.sin(u*Math.PI*3)),1.7);
-   const wave=Math.sin(u*Math.PI*18-t*5)*.52+Math.sin(u*Math.PI*31+t*3.2)*.3+Math.sin(u*Math.PI*47-t*2.1)*.18;
-   const y=mid+wave*amp*envelope;
-   if(i===0)c.moveTo(x,y);else c.lineTo(x,y);
-  }
-  c.strokeStyle=grad;c.lineWidth=width;c.globalAlpha=alpha;c.shadowColor="#b34cff";c.shadowBlur=blur;c.stroke();
- };
- drawWave(13,.16,34);drawWave(6,.42,22);drawWave(2.5,.98,12);c.restore();
-}
 async function makeVideoFast(fileHandle){
  const M=await loadMediabunny();
  const {Input,BlobSource,ALL_FORMATS,AudioBufferSink,AudioBufferSource,CanvasSink,CanvasSource,Output,Mp4OutputFormat,StreamTarget,BufferTarget,Quality}=M;
@@ -141,29 +120,20 @@ async function makeVideoFast(fileHandle){
   await output.start();
   // Add compressed AAC audio before video so the muxer does not retain a long video track in memory.
   let audioSeconds=0;
-  const audioEnvelope=[];let envelopeTime=0;
+  
   for await(const item of aSink.buffers()){
    const buf=item.buffer;await aSource.add(buf);
-   const ch0=buf.getChannelData(0),ch1=buf.numberOfChannels>1?buf.getChannelData(1):ch0;
-   const win=Math.max(1,Math.floor(buf.sampleRate/30));
-   for(let st=0;st<buf.length;st+=win){const en=Math.min(buf.length,st+win);let sum=0,n=0;for(let k=st;k<en;k+=4){const v=(ch0[k]+ch1[k])*0.5;sum+=v*v;n++}audioEnvelope.push({t:envelopeTime+st/buf.sampleRate,rms:n?Math.sqrt(sum/n):0})}
-   audioSeconds+=item.duration||buf.duration;envelopeTime+=buf.duration;
+   audioSeconds+=item.duration||buf.duration;
    $('#videoBar').style.width=Math.min(12,12*audioSeconds/duration)+'%';
   }
   aSource.close();
   const frames=Math.ceil(duration*30);let done=0;
   if(isStill){
-   const pulseOn=$('#audioPulse').checked,pulseStrength=Number($('#pulseStrength').value||5),zoomOn=$('#slowZoom').checked,lightOn=$('#lightPulse').checked,neonOn=$('#neonEqualizer').checked;
-   const pulseFactor=pulseStrength/10;const baseScale=Math.max(1920/stillBitmap.width,1080/stillBitmap.height);
+   const baseScale=Math.max(1920/stillBitmap.width,1080/stillBitmap.height),w=stillBitmap.width*baseScale,h=stillBitmap.height*baseScale;
    for(let i=0;i<frames;i++){
-    const t=i/30,env=audioEnvelope[Math.min(audioEnvelope.length-1,Math.floor(t*30))]?.rms||0;
-    const beat=Math.min(1,env*5.5),pulse=pulseOn?beat*pulseFactor*0.045:0;
-    const zoom=zoomOn?0.025*(i/Math.max(1,frames-1)):0;const scale=baseScale*(1+pulse+zoom);
-    const w=stillBitmap.width*scale,h=stillBitmap.height*scale;c.fillStyle='#08060b';c.fillRect(0,0,1920,1080);c.drawImage(stillBitmap,(1920-w)/2,(1080-h)/2,w,h);
-    if(lightOn){const glow=Math.min(.22,beat*pulseFactor*.22);c.fillStyle=`rgba(255,75,205,${glow})`;c.fillRect(0,0,1920,1080)}
-    if(neonOn)drawNeonEqualizer(c,t,beat,pulseFactor);
+    const t=i/30;c.fillStyle='#08060b';c.fillRect(0,0,1920,1080);c.drawImage(stillBitmap,(1920-w)/2,(1080-h)/2,w,h);
     await vSource.add(t,Math.min(1/30,duration-t));done++;
-    if(done%15===0){$('#videoBar').style.width=(12+85*done/frames)+'%';$('#videoStatus').textContent='Szybki eksport WebCodecs · obraz reagujący na muzykę · '+fmt(done/30)+' / '+fmt(duration)+' · '+Math.round(done/frames*100)+'%';await new Promise(r=>setTimeout(r,0))}
+    if(done%15===0){$('#videoBar').style.width=(12+85*done/frames)+'%';$('#videoStatus').textContent='Szybki eksport WebCodecs · '+fmt(done/30)+' / '+fmt(duration)+' · '+Math.round(done/frames*100)+'%';await new Promise(r=>setTimeout(r,0))}
    }
    stillBitmap.close();
   }else{

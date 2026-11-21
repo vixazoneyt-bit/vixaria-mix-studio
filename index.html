@@ -15,11 +15,11 @@ input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;curs
 .notice{background:#291a31;border-left:3px solid var(--pink);padding:10px 12px;border-radius:8px;color:#e4d1e7;font-size:12px;line-height:1.5}
 .bar{height:7px;border-radius:8px;background:#3a2843;overflow:hidden;margin-top:9px}.bar span{display:block;background:var(--pink);height:100%;width:0}
 .big{font-size:25px;font-weight:850;color:#ff8cde}.hidden{display:none!important}.project{background:#17101e;border:1px solid #503657;border-radius:10px;padding:10px;margin-top:8px}
-footer{text-align:center;color:#806d88;font-size:11px;padding:20px}
+footer{text-align:center;color:#806d88;font-size:11px;padding:20px}.step-check{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;margin-right:7px;border-radius:50%;border:1px solid #68536d;color:transparent;font-size:13px;vertical-align:middle}.step-check.done{background:#20a65a;border-color:#20a65a;color:#fff;box-shadow:0 0 10px #20a65a66}
 @media(min-width:700px){.grid{grid-template-columns:1fr 1fr;gap:12px}.grid .card{margin:12px 0}}
 </style></head>
 <body>
-<header><div><div class="logo">VIXARIA</div><div class="sub">MIX STUDIO 2.7</div></div><span class="tag">● LOKALNIE</span></header>
+<header><div><div class="logo">VIXARIA</div><div class="sub">MIX STUDIO 2.8</div></div><span class="tag">● LOKALNIE</span></header>
 <main>
 <h1>Twoje studio mixów 🎧</h1><p class="muted small">Muzyka, projekty i pliki robocze są przechowywane na tym urządzeniu.</p>
 <section class="card">
@@ -28,38 +28,29 @@ footer{text-align:center;color:#806d88;font-size:11px;padding:20px}
  <div id="projects"></div><p class="muted small" id="projectStatus">Projekt zapisuje się automatycznie.</p>
 </section>
 <div class="grid">
-<section class="card"><h2>1. Utwory muzyczne</h2>
+<section class="card"><h2><span class="step-check" id="step1Check">✓</span>1. Utwory muzyczne</h2>
 <label class="pick">＋ Dodaj wiele plików audio<input id="audioFiles" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg" multiple></label>
 <div id="tracks" class="muted small" style="padding:14px 0">Brak utworów w projekcie.</div>
 <div class="row between"><span class="small muted">Długość crossfade</span><b class="big"><span id="fadeVal">8</span>s</b></div><input id="fade" type="range" min="0" max="20" value="8">
-<label class="row small" style="margin-top:10px"><input id="normalize" type="checkbox" checked> Wyrównaj głośność</label>
-<label class="small muted" style="display:block;margin-top:12px">Jakość MP3</label><select id="bitrate"><option value="320">320 kb/s</option><option value="256">256 kb/s</option><option value="192">192 kb/s</option></select>
+<p class="small muted" style="margin-top:12px">Głośność jest wyrównywana automatycznie. Eksport MP3: 320 kb/s.</p>
 </section>
-<section class="card"><h2>2. Gotowy mix MP3</h2><div class="row between"><span class="muted small">Przewidywana długość</span><b id="duration">—</b></div>
+<section class="card"><h2><span class="step-check" id="step2Check">✓</span>2. Gotowy mix MP3</h2><div class="row between"><span class="muted small">Przewidywana długość</span><b id="duration">—</b></div>
 <button id="makeAudio" style="width:100%;margin-top:14px" disabled>♫ Utwórz mix MP3</button><div class="bar"><span id="audioBar"></span></div><p id="audioStatus" class="small muted">Dodaj utwory, aby rozpocząć.</p>
 <button id="downloadAudio" class="secondary hidden" style="width:100%">⇩ Pobierz mix MP3</button>
-<div class="notice" style="margin-top:12px">Wymagane jest jednorazowe pobranie biblioteki kodera MP3 przy pierwszym eksporcie. Później aplikacja zapisze ją do pamięci offline.</div>
+
 </section></div>
-<section class="card"><h2>3. Tło filmu</h2>
+<section class="card"><h2><span class="step-check" id="step3Check">✓</span>3. Tło filmu</h2>
 <div class="row" style="flex-wrap:wrap"><label class="pick">▣ Wgraj gotową animację MP4<input id="videoFile" type="file" accept="video/mp4,video/*"></label><label class="pick" style="background:linear-gradient(100deg,#8b48ff,#5734a8)">▧ Wgraj gotowy obraz<input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/*"></label></div>
 <p class="small muted" id="videoInfo">Nie dodano animacji ani obrazu.</p>
-<div id="reactiveControls" class="project hidden" style="margin-top:10px">
- <label class="row small"><input id="audioPulse" type="checkbox" checked> Pulsowanie obrazu w rytm muzyki</label>
- <div class="row between" style="margin-top:10px"><span class="small muted">Siła pulsowania</span><b class="small"><span id="pulseVal">5</span>/10</b></div>
- <input id="pulseStrength" type="range" min="1" max="10" value="5">
- <label class="row small" style="margin-top:10px"><input id="slowZoom" type="checkbox"> Powolne przybliżanie</label>
- <label class="row small" style="margin-top:8px"><input id="lightPulse" type="checkbox"> Pulsowanie światła</label>
- <label class="row small" style="margin-top:8px"><input id="neonEqualizer" type="checkbox"> Neonowy equalizer – kolorowa linia reagująca na muzykę</label>
- <p class="small muted" style="margin:8px 0 0">Efekty reagują na poziom głośności muzyki. Equalizer tworzy płynną, neonową falę w rytm utworu.</p>
-</div>
+
 <video id="preview" controls playsinline muted class="hidden" style="width:100%;max-height:230px;border-radius:12px;background:#08060b;margin-top:10px"></video><img id="imagePreview" alt="Podgląd gotowego obrazu" class="hidden" style="width:100%;max-height:300px;object-fit:contain;border-radius:12px;background:#08060b;margin-top:10px">
-<div class="notice" style="margin-top:12px">Nowy eksport przyspieszony używa WebCodecs i kodowania H.264/AAC. Długie pliki są zapisywane bezpośrednio na dysk, jeśli Chrome udostępnia wybór miejsca zapisu. W razie braku obsługi dostępny pozostaje eksport zgodnościowy.</div>
+
 </section>
-<section class="card"><h2>4. Gotowy film MP4</h2>
+<section class="card"><h2><span class="step-check" id="step4Check">✓</span>4. Gotowy film MP4</h2>
 <div class="row between"><span class="muted small">Format obrazu</span><b>Full HD · 16:9</b></div>
 <button id="makeVideo" style="width:100%;margin-top:14px" disabled>▶ Utwórz film MP4 (szybki eksport)</button><div class="bar"><span id="videoBar"></span></div><p id="videoStatus" class="small muted">Najpierw utwórz mix MP3 i dodaj animację.</p>
 <div class="project" style="margin-top:10px"><div class="row between"><span class="small muted">Faktyczny czas renderowania</span><b id="videoTimerActual">00:00</b></div><div class="row between" style="margin-top:7px"><span class="small muted">Szacowany czas do końca</span><b id="videoTimerEstimate">—</b></div></div>
 <button id="downloadVideo" class="secondary hidden" style="width:100%;margin-top:12px">⇩ Pobierz film MP4</button>
 </section>
-<footer>VIXARIA MIX STUDIO · wersja 2.7 · lokalne studio Android</footer>
+<footer>VIXARIA MIX STUDIO · wersja 2.8 · lokalne studio Android</footer>
 </main><script src="app.js"></script></body></html>
