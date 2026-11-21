@@ -202,5 +202,5 @@ function downloadAndClear(key,name){
  },5000);
 }
 $("#downloadAudio").onclick=()=>downloadAndClear("audioOutput",project.name+".mp3");$("#downloadVideo").onclick=()=>downloadAndClear("videoOutput",project.name+".mp4");
-async function init(){db=await openDB();let ps=await allProjects();if(ps.length)await loadProject(ps.sort((a,b)=>b.updated-a.updated)[0]);else newProject();await renderProjects()}
+async function init(){db=await openDB();let ps=await allProjects();if(ps.length)await loadProject(ps.sort((a,b)=>b.updated-a.updated)[0]);else resetProjectView();await renderProjects()}
 if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.warn));init().catch(e=>alert("Błąd pamięci lokalnej: "+e.message));
