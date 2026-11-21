@@ -28,9 +28,8 @@ async function renderProjects(){let ps=await allProjects();$("#projects").innerH
 function newProject(){project={id:crypto.randomUUID(),name:"Nowy mix",tracks:[],fade:8,normalize:true,bitrate:320,animation:null,stillImage:null,audioOutput:null,videoOutput:null,audioDownloaded:false,videoSaved:false,videoDownloaded:false};$("#projectName").value=project.name;put();renderTracks();renderOutputs()}
 $("#newProject").onclick=newProject;
 function commitProjectName(){if(!project)return;const value=$("#projectName").value.trim();project.name=value||"Nowy mix";$("#projectName").value=project.name;if(projectNameSaveTimer){clearTimeout(projectNameSaveTimer);projectNameSaveTimer=null}put()}
-$("#projectName").addEventListener("input",()=>{if(!project)return;project.name=$("#projectName").value;clearTimeout(projectNameSaveTimer);projectNameSaveTimer=setTimeout(()=>{if(project){project.name=$("#projectName").value.trim()||"Nowy mix";put()}},350)});
-$("#projectName").addEventListener("change",commitProjectName);
-$("#projectName").addEventListener("blur",commitProjectName);
+$("#projectName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();commitProjectName();$("#projectName").blur()}});
+$("#projectName").addEventListener("change",()=>{if(!project)return;$("#projectName").value=project.name||"Nowy mix"});
 function fmt(s){return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`}
 let videoRenderStarted=0,videoTimerInterval=null;
 function fmtClock(s){s=Math.max(0,Math.floor(s||0));return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`}
