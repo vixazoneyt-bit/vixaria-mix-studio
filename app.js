@@ -6,7 +6,25 @@ async function allProjects(){return req(db.transaction(STORE).objectStore(STORE)
 function updateStepChecks(){if(!project)return;const d=[!!project.tracks?.length,!!project.audioOutput||!!project.audioDownloaded,!!(project.animation||project.stillImage),!!project.videoOutput||!!project.videoSaved||!!project.videoDownloaded];d.forEach((v,i)=>{const el=$("#step"+(i+1)+"Check");if(el)el.classList.toggle("done",v)})}
 async function put(){if(!project)return;project.updated=Date.now();await req(db.transaction(STORE,"readwrite").objectStore(STORE).put(project));renderProjects();updateStepChecks();$("#projectStatus").textContent="Zapisano automatycznie · "+new Date().toLocaleTimeString()}
 async function loadProject(p){project=p;$("#projectName").value=p.name;$("#fade").value=p.fade??8;$("#fadeVal").textContent=$("#fade").value;project.normalize=true;project.bitrate=320;renderTracks();renderOutputs();updateStepChecks();if(p.animation){setVideoPreview(p.animation)}else if(p.stillImage){setImagePreview(p.stillImage)}else{$("#videoInfo").textContent="Nie dodano animacji ani obrazu.";$("#preview").classList.add("hidden");$("#imagePreview").classList.add("hidden")}$("#audioStatus").textContent=p.audioOutput?"W projekcie jest gotowy mix MP3.":"Dodaj utwory, aby rozpocząć.";renderProjects()}
-async function renderProjects(){let ps=await allProjects();$("#projects").innerHTML="";ps.sort((a,b)=>b.updated-a.updated).forEach(p=>{let d=document.createElement("div");d.className="project row between";let label=document.createElement("button");label.className="ghost";label.textContent=p.name+" · "+(p.tracks?.length||0)+" utworów";label.onclick=()=>loadProject(p);let del=document.createElement("button");del.className="secondary";del.textContent="Usuń";del.onclick=async()=>{if(confirm("Usunąć projekt wraz z zapisanymi plikami źródłowymi?")){await req(db.transaction(STORE,"readwrite").objectStore(STORE).delete(p.id));if(project?.id===p.id)project=null;renderProjects()}};d.append(label,del);$("#projects").append(d)})}
+function resetProjectView(){
+ if(projectNameSaveTimer){clearTimeout(projectNameSaveTimer);projectNameSaveTimer=null}
+ if(animURL){URL.revokeObjectURL(animURL);animURL=null}if(imageURL){URL.revokeObjectURL(imageURL);imageURL=null}
+ mp3Blob=null;videoBlob=null;project=null;
+ ["audioFiles","videoFile","imageFile"].forEach(id=>{const el=$("#"+id);if(el)el.value=""});
+ const v=$("#preview");v.pause();v.removeAttribute("src");v.load();v.classList.add("hidden");
+ const im=$("#imagePreview");im.removeAttribute("src");im.classList.add("hidden");
+ $("#projectName").value="";$("#fade").value=8;$("#fadeVal").textContent="8";
+ $("#tracks").textContent="Brak utworów w projekcie.";
+ $("#duration").textContent="—";$("#makeAudio").disabled=true;$("#audioBar").style.width="0%";$("#audioStatus").textContent="Dodaj utwory, aby rozpocząć.";
+ $("#downloadAudio").classList.add("hidden");$("#downloadAudio").disabled=true;
+ $("#videoInfo").textContent="Nie dodano animacji ani obrazu.";
+ $("#makeVideo").disabled=true;$("#videoBar").style.width="0%";$("#videoStatus").textContent="Najpierw utwórz mix MP3 i dodaj animację.";
+ $("#downloadVideo").classList.add("hidden");$("#downloadVideo").disabled=true;
+ $("#videoTimerActual").textContent="00:00";$("#videoTimerEstimate").textContent="—";stopVideoClock();
+ [1,2,3,4].forEach(i=>$("#step"+i+"Check")?.classList.remove("done"));
+ $("#projectStatus").textContent="Projekt usunięty.";
+}
+async function renderProjects(){let ps=await allProjects();$("#projects").innerHTML="";ps.sort((a,b)=>b.updated-a.updated).forEach(p=>{let d=document.createElement("div");d.className="project row between";let label=document.createElement("button");label.className="ghost";label.textContent=p.name+" · "+(p.tracks?.length||0)+" utworów";label.onclick=()=>loadProject(p);let del=document.createElement("button");del.className="secondary";del.textContent="Usuń";del.onclick=async()=>{if(confirm("Usunąć projekt wraz z zapisanymi plikami źródłowymi?")){const wasActive=project?.id===p.id;await req(db.transaction(STORE,"readwrite").objectStore(STORE).delete(p.id));if(wasActive){resetProjectView();const remaining=await allProjects();if(remaining.length){remaining.sort((x,y)=>y.updated-x.updated);await loadProject(remaining[0])}else{newProject()}}else{await renderProjects()}}};d.append(label,del);$("#projects").append(d)})}
 function newProject(){project={id:crypto.randomUUID(),name:"Nowy mix",tracks:[],fade:8,normalize:true,bitrate:320,animation:null,stillImage:null,audioOutput:null,videoOutput:null,audioDownloaded:false,videoSaved:false,videoDownloaded:false};$("#projectName").value=project.name;put();renderTracks();renderOutputs()}
 $("#newProject").onclick=newProject;
 function commitProjectName(){if(!project)return;const value=$("#projectName").value.trim();if(value)project.name=value;else $("#projectName").value=project.name||"Nowy mix";put()}
