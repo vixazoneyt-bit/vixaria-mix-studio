@@ -185,7 +185,7 @@ $('#makeVideo').onclick=async()=>{
  finally{stopVideoClock();btn.disabled=false}
 };
 
-async function renderOutputs(){/* Osobna sekcja „Pliki gotowe do pobrania” została usunięta. Pobieranie odbywa się przy odpowiednich etapach. */}
+async function renderOutputs(){const audioReady=!!project?.audioOutput&&!project?.audioDownloaded;$("#downloadAudio").classList.toggle("hidden",!audioReady);$("#downloadAudio").disabled=!audioReady;const videoReady=!!project?.videoOutput&&!project?.videoDownloaded;$("#downloadVideo").classList.toggle("hidden",!videoReady);$("#downloadVideo").disabled=!videoReady;}
 function downloadAndClear(key,name){
  let blob=project?.[key];if(!blob)return;
  let a=document.createElement("a"),u=URL.createObjectURL(blob);a.href=u;a.download=name.replace(/[^\w .-]/g,"_");a.click();
