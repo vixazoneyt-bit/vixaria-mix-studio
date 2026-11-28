@@ -6,7 +6,7 @@ async function allProjects(){return req(db.transaction(STORE).objectStore(STORE)
 function updateStepChecks(){if(!project)return;const d=[!!project.tracks?.length,!!project.audioOutput||!!project.audioDownloaded,!!(project.animation||project.stillImage),!!project.videoOutput||!!project.videoSaved||!!project.videoDownloaded];d.forEach((v,i)=>{const el=$("#step"+(i+1)+"Check");if(el)el.classList.toggle("done",v)})}
 async function put(){if(!project||deletedProjectIds.has(project.id))return;const savedProject=project;savedProject.updated=Date.now();await req(db.transaction(STORE,"readwrite").objectStore(STORE).put(savedProject));if(project!==savedProject||deletedProjectIds.has(savedProject.id))return;renderProjects();updateStepChecks();$("#projectStatus").textContent="Zapisano automatycznie · "+new Date().toLocaleTimeString()}
 async function loadProject(p){clearProjectMediaUI();project=p;$("#projectName").value=p.name;$("#fade").value=p.fade??8;$("#fadeVal").textContent=$("#fade").value;project.normalize=true;project.bitrate=320;renderTracks();renderOutputs();updateStepChecks();if(p.animation){setVideoPreview(p.animation)}else if(p.stillImage){setImagePreview(p.stillImage)}$("#audioStatus").textContent=p.audioOutput?"W projekcie jest gotowy mix MP3.":"Dodaj utwory, aby rozpocząć.";renderProjects()}
-function clearProjectMediaUI(){if(animURL){URL.revokeObjectURL(animURL);animURL=null}if(imageURL){URL.revokeObjectURL(imageURL);imageURL=null}["audioFiles","videoFile","imageFile"].forEach(id=>{const el=$("#"+id);if(el)el.value=""});const v=$("#preview");v.pause();v.removeAttribute("src");v.load();v.classList.add("hidden");const im=$("#imagePreview");im.removeAttribute("src");im.classList.add("hidden");$("#videoInfo").textContent="Nie dodano animacji ani obrazu.";}
+function clearProjectMediaUI(){if(animURL){URL.revokeObjectURL(animURL);animURL=null}if(imageURL){URL.revokeObjectURL(imageURL);imageURL=null}["audioFiles","readyMixFile","videoFile","imageFile"].forEach(id=>{const el=$("#"+id);if(el)el.value=""});const v=$("#preview");v.pause();v.removeAttribute("src");v.load();v.classList.add("hidden");const im=$("#imagePreview");im.removeAttribute("src");im.classList.add("hidden");$("#videoInfo").textContent="Nie dodano animacji ani obrazu.";}
 function resetProjectView(){
  if(projectNameSaveTimer){clearTimeout(projectNameSaveTimer);projectNameSaveTimer=null}
  if(animURL){URL.revokeObjectURL(animURL);animURL=null}if(imageURL){URL.revokeObjectURL(imageURL);imageURL=null}
@@ -38,7 +38,7 @@ function startVideoClock(){videoRenderStarted=performance.now();clearInterval(vi
 function updateVideoClock(){if(!videoRenderStarted)return;const elapsed=(performance.now()-videoRenderStarted)/1000;$('#videoTimerActual').textContent=fmtClock(elapsed);const pct=parseFloat($('#videoBar').style.width)||0;if(pct>=2&&pct<100){const remaining=elapsed*(100-pct)/pct;$('#videoTimerEstimate').textContent='około '+fmtClock(remaining)}else if(pct>=100){$('#videoTimerEstimate').textContent='Gotowe'}}
 function stopVideoClock(){if(videoRenderStarted){updateVideoClock();$('#videoTimerEstimate').textContent='Zakończono · '+$('#videoTimerActual').textContent;videoRenderStarted=0}clearInterval(videoTimerInterval);videoTimerInterval=null}
 function renderTracks(){let box=$("#tracks");box.innerHTML="";if(!project?.tracks?.length){box.textContent="Brak utworów w projekcie."}else project.tracks.forEach((t,i)=>{let d=document.createElement("div");d.className="track";let n=document.createElement("span");n.className="muted";n.textContent=String(i+1).padStart(2,"0");let info=document.createElement("div");let nm=document.createElement("div");nm.className="trackname";nm.textContent=t.name;let mt=document.createElement("div");mt.className="trackmeta";mt.textContent=t.duration?fmt(t.duration):"Czas odczytany podczas eksportu · plik zapisany";info.append(nm,mt);let acts=document.createElement("div");acts.className="row";[["↑",-1],["↓",1],["×",0]].forEach(([s,dir])=>{let b=document.createElement("button");b.className="secondary";b.textContent=s;b.onclick=async()=>{if(dir===0)project.tracks.splice(i,1);else{let j=i+dir;if(j<0||j>=project.tracks.length)return;[project.tracks[i],project.tracks[j]]=[project.tracks[j],project.tracks[i]]}project.audioOutput=null;renderTracks();await put()};acts.append(b)});d.append(n,info,acts);box.append(d)});
-let total=(project?.tracks||[]).reduce((a,t)=>a+(t.duration||0),0)-Math.max(0,(project?.tracks?.length||0)-1)*(+$("#fade").value||0);$("#duration").textContent=project?.tracks?.length?fmt(Math.max(0,total)):"—";$("#makeAudio").disabled=!(project?.tracks?.length)}
+let total=(project?.tracks||[]).reduce((a,t)=>a+(t.duration||0),0)-Math.max(0,(project?.tracks?.length||0)-1)*(+$("#fade").value||0);$("#duration").textContent=project?.tracks?.length?fmt(Math.max(0,total)):(project?.audioOutput?fmt(project.audioDuration||0):"—");$("#makeAudio").disabled=!(project?.tracks?.length)}
 async function saveSettings(){if(!project)return;project.fade=+$("#fade").value;project.normalize=true;project.bitrate=320;project.audioOutput=null;await put();renderTracks()}
 $("#fade").oninput=()=>{$("#fadeVal").textContent=$("#fade").value;renderTracks()};$("#fade").addEventListener("change",saveSettings);
 async function readDuration(file){
@@ -49,6 +49,26 @@ async function readDuration(file){
   a.src=u;setTimeout(()=>finish(0),12000);
  });
 }
+$("#readyMixFile").addEventListener("change",async e=>{
+ const file=e.target.files?.[0];e.target.value="";
+ if(!file)return;
+ if(!(file.type==="audio/mpeg"||/\\.mp3$/i.test(file.name))){alert("Wybierz gotowy mix w formacie MP3.");return}
+ if(!project)newProject();
+ const duration=await readDuration(file);
+ project.tracks=[];
+ project.audioOutput=file;
+ project.audioDuration=duration;
+ project.audioDownloaded=false;
+ project.videoOutput=null;
+ project.videoSaved=false;
+ mp3Blob=file;
+ await put();
+ renderTracks();
+ await renderOutputs();
+ $("#audioStatus").textContent="Wczytano gotowy mix MP3"+(duration?" · "+fmt(duration):"")+". Nie trzeba generować go ponownie.";
+ $("#makeVideo").disabled=!(project.animation||project.stillImage);
+ $("#projectStatus").textContent="Gotowy mix dodany do projektu.";
+});
 $("#audioFiles").addEventListener("change",async e=>{
  if(!project)newProject();
  const chosen=[...e.target.files];e.target.value="";
