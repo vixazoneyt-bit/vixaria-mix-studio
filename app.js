@@ -156,8 +156,8 @@ async function makeVideoLegacy(){
   ctx=new AudioContext();let ab=await ctx.decodeAudioData(await project.audioOutput.arrayBuffer());
   src=ctx.createBufferSource();src.buffer=ab;let dest=ctx.createMediaStreamDestination();src.connect(dest);
   let canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;let c=canvas.getContext('2d',{alpha:false});
-  stream=canvas.captureStream(30);dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
-  rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:6000000,audioBitsPerSecond:192000});
+  stream=canvas.captureStream(24);dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+  rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:4000000,audioBitsPerSecond:192000});
   rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
   let done=new Promise((ok,no)=>{rec.onstop=ok;rec.onerror=e=>no(e.error||Error('Błąd MediaRecorder.'))});
   await v.play();await ctx.resume();const duration=ab.duration,started=performance.now();
@@ -191,8 +191,8 @@ async function makeVideoFast(fileHandle){
   const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
   const c=canvas.getContext('2d',{alpha:false});if(!c)throw Error('Nie można utworzyć płótna Full HD.');
   if(!isStill)vSink=new CanvasSink(vTrack,{width:1920,height:1080,fit:'fill',poolSize:1});
-  const vSource=new CanvasSource(canvas,{codec:'avc',quality:new Quality({bitrate:6000000}),hardwareAcceleration:'prefer-hardware',latencyMode:'quality',keyFrameInterval:2});
-  output.addVideoTrack(vSource,{frameRate:30});output.addAudioTrack(aSource);
+  const outputFps=24;\n  const vSource=new CanvasSource(canvas,{codec:'avc',quality:new Quality({bitrate:4000000}),hardwareAcceleration:'prefer-hardware',latencyMode:'quality',keyFrameInterval:2});
+  output.addVideoTrack(vSource,{frameRate:outputFps});output.addAudioTrack(aSource);
   await output.start();
   // Add compressed AAC audio before video so the muxer does not retain a long video track in memory.
   let audioSeconds=0;
@@ -203,19 +203,19 @@ async function makeVideoFast(fileHandle){
    $('#videoBar').style.width=Math.min(12,12*audioSeconds/duration)+'%';
   }
   aSource.close();
-  const frames=Math.ceil(duration*30);let done=0;
+  const frames=Math.ceil(duration*outputFps);let done=0;
   if(isStill){
    const baseScale=Math.max(1920/stillBitmap.width,1080/stillBitmap.height),w=stillBitmap.width*baseScale,h=stillBitmap.height*baseScale;
    for(let i=0;i<frames;i++){
-    const t=i/30;c.fillStyle='#08060b';c.fillRect(0,0,1920,1080);c.drawImage(stillBitmap,(1920-w)/2,(1080-h)/2,w,h);
-    await vSource.add(t,Math.min(1/30,duration-t));done++;
-    if(done%15===0){$('#videoBar').style.width=(12+85*done/frames)+'%';$('#videoStatus').textContent='Szybki eksport WebCodecs · '+fmt(done/30)+' / '+fmt(duration)+' · '+Math.round(done/frames*100)+'%';await new Promise(r=>setTimeout(r,0))}
+    const t=i/outputFps;c.fillStyle='#08060b';c.fillRect(0,0,1920,1080);c.drawImage(stillBitmap,(1920-w)/2,(1080-h)/2,w,h);
+    await vSource.add(t,Math.min(1/outputFps,duration-t));done++;
+    if(done%15===0){$('#videoBar').style.width=(12+85*done/frames)+'%';$('#videoStatus').textContent='Szybki eksport WebCodecs · '+fmt(done/outputFps)+' / '+fmt(duration)+' · '+Math.round(done/frames*100)+'%';await new Promise(r=>setTimeout(r,0))}
    }
    stillBitmap.close();
   }else{
-   const timestamps=(async function*(){for(let i=0;i<frames;i++)yield (i/30)%animDuration})();
+   const timestamps=(async function*(){for(let i=0;i<frames;i++)yield (i/outputFps)%animDuration})();
    for await(const item of vSink.canvasesAtTimestamps(timestamps)){
-    if(!item)continue;c.drawImage(item.canvas,0,0,1920,1080);await vSource.add(done/30,Math.min(1/30,duration-done/30));done++;
+    if(!item)continue;c.drawImage(item.canvas,0,0,1920,1080);await vSource.add(done/outputFps,Math.min(1/outputFps,duration-done/outputFps));done++;
     if(done%15===0){$('#videoBar').style.width=(12+85*done/frames)+'%';$('#videoStatus').textContent='Szybki eksport WebCodecs · '+fmt(done/30)+' / '+fmt(duration)+' · '+Math.round(done/frames*100)+'%';await new Promise(r=>setTimeout(r,0))}
    }
   }
