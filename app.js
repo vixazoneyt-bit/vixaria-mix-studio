@@ -96,7 +96,7 @@ $("#makeAudio").onclick=async()=>{
  const detail=(message)=>{$("#audioProgressDetail").textContent=message};
  const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
  try{
-  detail("Przygotowywanie kodera MP3…");$("#audioStatus").textContent="Rozpoczynam składanie mixu…";
+  detail("Przygotowywanie kodera MP3…");$("#audioStatus").textContent="";
   await loadLame();if(!audioCtx)audioCtx=new AudioContext();
   let decoded=[];
   for(let i=0;i<project.tracks.length;i++){
