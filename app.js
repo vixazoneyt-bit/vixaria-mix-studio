@@ -16,7 +16,7 @@ function resetProjectView(){
  const im=$("#imagePreview");im.removeAttribute("src");im.classList.add("hidden");
  $("#projectName").value="";$("#fade").value=8;$("#fadeVal").textContent="8";
  $("#tracks").textContent="Brak utworów w projekcie.";
- $("#duration").textContent="—";$("#makeAudio").disabled=true;$("#audioBar").style.width="0%";
+ $("#duration").textContent="—";$("#makeAudio").disabled=true;$("#audioBar").style.width="0%";$("#audioProgressLabel").textContent="";
  
  $("#downloadAudio").classList.add("hidden");$("#downloadAudio").disabled=true;
  $("#videoInfo").textContent="Nie dodano animacji ani obrazu.";
@@ -100,7 +100,7 @@ $("#audioFiles").addEventListener("change",async e=>{
 async function loadLame(){if(window.lamejs)return;let s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js";document.head.append(s);await new Promise((ok,no)=>{s.onload=ok;s.onerror=()=>no(Error("Nie udało się pobrać kodera MP3. Połącz się z internetem i spróbuj ponownie."))});if(!window.lamejs)throw Error("Koder MP3 nie został uruchomiony.")}
 function peak(buf){let m=0;for(let c=0;c<buf.numberOfChannels;c++){let a=buf.getChannelData(c);for(let i=0;i<a.length;i+=128)m=Math.max(m,Math.abs(a[i]))}return m||1}
 $("#makeAudio").onclick=async()=>{
- const btn=$("#makeAudio");btn.disabled=true;$("#audioBar").style.width="1%";
+ const btn=$("#makeAudio");btn.disabled=true;$("#audioBar").style.width="1%";$("#audioProgressLabel").textContent="Przygotowywanie eksportu MP3 · 1%";
  
  const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
  try{
@@ -110,30 +110,30 @@ $("#makeAudio").onclick=async()=>{
   for(let i=0;i<project.tracks.length;i++){
    const track=project.tracks[i];
    
-   $("#audioBar").style.width=(2+18*i/project.tracks.length)+"%";await yieldUI();
+   const pct=2+18*i/project.tracks.length;$("#audioBar").style.width=pct+"%";$("#audioProgressLabel").textContent="Odczytywanie utworu "+(i+1)+" z "+project.tracks.length+" · "+Math.round(pct)+"%";await yieldUI();
    decoded.push(await audioCtx.decodeAudioData(await track.file.arrayBuffer()));
   }
-  $("#audioBar").style.width="22%";await yieldUI();
+  $("#audioBar").style.width="22%";$("#audioProgressLabel").textContent="Przygotowywanie ścieżek do miksowania · 22%";await yieldUI();
   const sr=decoded[0].sampleRate,fade=+project.fade,fadeSamples=decoded.slice(1).map((b,i)=>Math.round(Math.min(fade,decoded[i].duration/2,b.duration/2)*sr));
   let starts=[0];for(let i=1;i<decoded.length;i++)starts[i]=starts[i-1]+decoded[i-1].length-fadeSamples[i-1];
   let total=starts.at(-1)+decoded.at(-1).length,left=new Float32Array(total),right=new Float32Array(total);
   for(let i=0;i<decoded.length;i++){
    const b=decoded[i],l=b.getChannelData(0),r=b.numberOfChannels>1?b.getChannelData(1):l,start=starts[i],gain=Math.min(2,.88/peak(b));
    
-   $("#audioBar").style.width=(22+28*i/decoded.length)+"%";await yieldUI();
+   const pct=22+28*i/decoded.length;$("#audioBar").style.width=pct+"%";$("#audioProgressLabel").textContent="Łączenie utworów i crossfade · "+Math.round(pct)+"%";await yieldUI();
    for(let k=0;k<b.length;k++){
     let g=gain;if(i>0&&k<fadeSamples[i-1])g*=Math.sin(k/fadeSamples[i-1]*Math.PI/2);
     if(i<decoded.length-1&&k>b.length-fadeSamples[i])g*=Math.cos((k-(b.length-fadeSamples[i]))/fadeSamples[i]*Math.PI/2);
     left[start+k]+=l[k]*g;right[start+k]+=r[k]*g;
    }
   }
-  $("#audioBar").style.width="52%";await yieldUI();
+  $("#audioBar").style.width="52%";$("#audioProgressLabel").textContent="Przygotowywanie kodera MP3 · 52%";await yieldUI();
   let enc=new lamejs.Mp3Encoder(2,sr,320),chunks=[],block=1152;
   for(let i=0;i<total;i+=block){
    let n=Math.min(block,total-i),l=new Int16Array(n),r=new Int16Array(n);
    for(let j=0;j<n;j++){l[j]=Math.max(-32768,Math.min(32767,left[i+j]*32767));r[j]=Math.max(-32768,Math.min(32767,right[i+j]*32767))}
    let out=enc.encodeBuffer(l,r);if(out.length)chunks.push(new Uint8Array(out));
-   const pct=i/total;$("#audioBar").style.width=(52+45*pct)+"%";
+   const pct=i/total,overall=52+45*pct;$("#audioBar").style.width=overall+"%";$("#audioProgressLabel").textContent="Kodowanie MP3 · "+Math.round(overall)+"%";
    if(i%(block*100)===0){await yieldUI()}
   }
   let end=enc.flush();if(end.length)chunks.push(new Uint8Array(end));
