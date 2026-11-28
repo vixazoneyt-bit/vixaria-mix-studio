@@ -16,7 +16,7 @@ function resetProjectView(){
  const im=$("#imagePreview");im.removeAttribute("src");im.classList.add("hidden");
  $("#projectName").value="";$("#fade").value=8;$("#fadeVal").textContent="8";
  $("#tracks").textContent="Brak utworów w projekcie.";
- $("#duration").textContent="—";$("#makeAudio").disabled=true;$("#audioBar").style.width="0%";$("#audioProgressLabel").textContent="";
+ $("#duration").textContent="—";$("#makeAudio").disabled=true;$("#audioBar").style.width="0%";$("#audioProgressLabel").textContent="Gotowy do eksportu MP3";
  
  $("#downloadAudio").classList.add("hidden");$("#downloadAudio").disabled=true;
  $("#videoInfo").textContent="Nie dodano animacji ani obrazu.";
