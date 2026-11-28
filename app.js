@@ -97,51 +97,45 @@ $("#audioFiles").addEventListener("change",async e=>{
  if(project===activeProject){renderTracks();await put()}
 });
 
-async function loadLame(){if(window.lamejs)return;let s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js";document.head.append(s);await new Promise((ok,no)=>{s.onload=ok;s.onerror=()=>no(Error("Nie udało się pobrać kodera MP3. Połącz się z internetem i spróbuj ponownie."))});if(!window.lamejs)throw Error("Koder MP3 nie został uruchomiony.")}
 function peak(buf){let m=0;for(let c=0;c<buf.numberOfChannels;c++){let a=buf.getChannelData(c);for(let i=0;i<a.length;i+=128)m=Math.max(m,Math.abs(a[i]))}return m||1}
 $("#makeAudio").onclick=async()=>{
  const btn=$("#makeAudio");btn.disabled=true;$("#audioBar").style.width="1%";$("#audioProgressLabel").textContent="Przygotowywanie eksportu MP3 · 1%";
- 
- const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
+ let worker=null;
  try{
-  
-  await loadLame();if(!audioCtx)audioCtx=new AudioContext();
-  let decoded=[];
-  for(let i=0;i<project.tracks.length;i++){
-   const track=project.tracks[i];
-   
-   const pct=2+18*i/project.tracks.length;$("#audioBar").style.width=pct+"%";$("#audioProgressLabel").textContent="Odczytywanie utworu "+(i+1)+" z "+project.tracks.length+" · "+Math.round(pct)+"%";await yieldUI();
-   decoded.push(await audioCtx.decodeAudioData(await track.file.arrayBuffer()));
-  }
-  $("#audioBar").style.width="22%";$("#audioProgressLabel").textContent="Przygotowywanie ścieżek do miksowania · 22%";await yieldUI();
-  const sr=decoded[0].sampleRate,fade=+project.fade,fadeSamples=decoded.slice(1).map((b,i)=>Math.round(Math.min(fade,decoded[i].duration/2,b.duration/2)*sr));
-  let starts=[0];for(let i=1;i<decoded.length;i++)starts[i]=starts[i-1]+decoded[i-1].length-fadeSamples[i-1];
-  let total=starts.at(-1)+decoded.at(-1).length,left=new Float32Array(total),right=new Float32Array(total);
-  for(let i=0;i<decoded.length;i++){
-   const b=decoded[i],l=b.getChannelData(0),r=b.numberOfChannels>1?b.getChannelData(1):l,start=starts[i],gain=Math.min(2,.88/peak(b));
-   
-   const pct=22+28*i/decoded.length;$("#audioBar").style.width=pct+"%";$("#audioProgressLabel").textContent="Łączenie utworów i crossfade · "+Math.round(pct)+"%";await yieldUI();
-   for(let k=0;k<b.length;k++){
-    let g=gain;if(i>0&&k<fadeSamples[i-1])g*=Math.sin(k/fadeSamples[i-1]*Math.PI/2);
-    if(i<decoded.length-1&&k>b.length-fadeSamples[i])g*=Math.cos((k-(b.length-fadeSamples[i]))/fadeSamples[i]*Math.PI/2);
-    left[start+k]+=l[k]*g;right[start+k]+=r[k]*g;
-   }
-  }
-  $("#audioBar").style.width="52%";$("#audioProgressLabel").textContent="Przygotowywanie kodera MP3 · 52%";await yieldUI();
-  let enc=new lamejs.Mp3Encoder(2,sr,320),chunks=[],block=1152;
-  for(let i=0;i<total;i+=block){
-   let n=Math.min(block,total-i),l=new Int16Array(n),r=new Int16Array(n);
-   for(let j=0;j<n;j++){l[j]=Math.max(-32768,Math.min(32767,left[i+j]*32767));r[j]=Math.max(-32768,Math.min(32767,right[i+j]*32767))}
-   let out=enc.encodeBuffer(l,r);if(out.length)chunks.push(new Uint8Array(out));
-   const pct=i/total,overall=52+45*pct;$("#audioBar").style.width=overall+"%";$("#audioProgressLabel").textContent="Kodowanie MP3 · "+Math.round(overall)+"%";
-   if(i%(block*100)===0){await yieldUI()}
-  }
-  let end=enc.flush();if(end.length)chunks.push(new Uint8Array(end));
-  mp3Blob=new Blob(chunks,{type:"audio/mpeg"});project.audioOutput=mp3Blob;project.audioDuration=total/sr;
+  if(!audioCtx)audioCtx=new AudioContext();
+  const tracks=project.tracks;
+  const decoded=await Promise.all(tracks.map(async(track,i)=>{
+   const pct=2+18*i/tracks.length;
+   $("#audioBar").style.width=pct+"%";$("#audioProgressLabel").textContent="Odczytywanie utworów · "+Math.round(pct)+"%";
+   return audioCtx.decodeAudioData(await track.file.arrayBuffer());
+  }));
+  $("#audioBar").style.width="22%";$("#audioProgressLabel").textContent="Przygotowywanie ścieżek do miksowania · 22%";
+  const sr=decoded[0].sampleRate,fade=+project.fade||0,transfer=[],payload=decoded.map((b,i)=>{
+   const left=b.getChannelData(0),right=b.numberOfChannels>1?b.getChannelData(1):left;
+   const gain=Math.min(2,.88/peak(b));
+   if(!transfer.includes(left.buffer))transfer.push(left.buffer);
+   if(!transfer.includes(right.buffer))transfer.push(right.buffer);
+   return {left:left.buffer,right:right.buffer,length:b.length,duration:b.duration,gain,fade};
+  });
+  decoded.length=0;
+  worker=new Worker("./mp3-worker.js");
+  const result=await new Promise((resolve,reject)=>{
+   worker.onmessage=e=>{
+    const d=e.data;
+    if(d.type==="mix-progress"){$("#audioBar").style.width=d.percent+"%";$("#audioProgressLabel").textContent="Łączenie utworów i crossfade · "+d.percent+"%"}
+    else if(d.type==="encode-progress"){$("#audioBar").style.width=d.percent+"%";$("#audioProgressLabel").textContent="Kodowanie MP3 · "+d.percent+"%"}
+    else if(d.type==="done")resolve(d);
+    else if(d.type==="error")reject(new Error(d.message));
+   };
+   worker.onerror=e=>reject(new Error(e.message||"Nie udało się uruchomić szybkiego kodowania MP3."));
+   worker.postMessage({tracks:payload,sampleRate:sr,bitrate:320},transfer);
+  });
+  worker.terminate();worker=null;
+  mp3Blob=new Blob([result.buffer],{type:"audio/mpeg"});project.audioOutput=mp3Blob;project.audioDuration=result.duration;
   await put();$("#audioBar").style.width="100%";$("#audioProgressLabel").textContent="Gotowy mix MP3 · 100%";
   $("#downloadAudio").classList.remove("hidden");renderOutputs();
  }catch(e){$("#audioProgressLabel").textContent="Błąd eksportu MP3: "+(e?.message||"spróbuj ponownie");}
- finally{btn.disabled=false}
+ finally{if(worker)worker.terminate();btn.disabled=false}
 };
 function setVideoPreview(file){if(animURL)URL.revokeObjectURL(animURL);animURL=URL.createObjectURL(file);let v=$("#preview");v.src=animURL;v.classList.remove("hidden");$("#imagePreview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · animacja zapisana w projekcie";$("#makeVideo").disabled=!project?.audioOutput}
 function setImagePreview(file){if(imageURL)URL.revokeObjectURL(imageURL);imageURL=URL.createObjectURL(file);let im=$("#imagePreview");im.src=imageURL;im.classList.remove("hidden");$("#preview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · obraz zapisany w projekcie (będzie widoczny przez cały film)";$("#makeVideo").disabled=!project?.audioOutput}
