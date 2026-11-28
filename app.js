@@ -5,7 +5,7 @@ function openDB(){return new Promise((ok,no)=>{let r=indexedDB.open(DB,1);r.onup
 async function allProjects(){return req(db.transaction(STORE).objectStore(STORE).getAll())}
 function updateStepChecks(){if(!project)return;const d=[!!project.tracks?.length,!!project.audioOutput||!!project.audioDownloaded,!!(project.animation||project.stillImage),!!project.videoOutput||!!project.videoSaved||!!project.videoDownloaded];d.forEach((v,i)=>{const el=$("#step"+(i+1)+"Check");if(el)el.classList.toggle("done",v)})}
 async function put(){if(!project||deletedProjectIds.has(project.id))return;const savedProject=project;savedProject.updated=Date.now();await req(db.transaction(STORE,"readwrite").objectStore(STORE).put(savedProject));if(project!==savedProject||deletedProjectIds.has(savedProject.id))return;renderProjects();updateStepChecks();$("#projectStatus").textContent="Zapisano automatycznie · "+new Date().toLocaleTimeString()}
-async function loadProject(p){clearProjectMediaUI();project=p;$("#projectName").value=p.name;$("#fade").value=p.fade??8;$("#fadeVal").textContent=$("#fade").value;project.normalize=true;project.bitrate=320;renderTracks();renderOutputs();updateStepChecks();if(p.animation){setVideoPreview(p.animation)}else if(p.stillImage){setImagePreview(p.stillImage)}$("#audioStatus").textContent=p.audioOutput?"W projekcie jest gotowy mix MP3.":"Dodaj utwory, aby rozpocząć.";renderProjects()}
+async function loadProject(p){clearProjectMediaUI();project=p;$("#projectName").value=p.name;$("#fade").value=p.fade??8;$("#fadeVal").textContent=$("#fade").value;project.normalize=true;project.bitrate=320;renderTracks();renderOutputs();updateStepChecks();if(p.animation){setVideoPreview(p.animation)}else if(p.stillImage){setImagePreview(p.stillImage)}renderProjects()}
 function clearProjectMediaUI(){if(animURL){URL.revokeObjectURL(animURL);animURL=null}if(imageURL){URL.revokeObjectURL(imageURL);imageURL=null}["audioFiles","readyMixFile","videoFile","imageFile"].forEach(id=>{const el=$("#"+id);if(el)el.value=""});const v=$("#preview");v.pause();v.removeAttribute("src");v.load();v.classList.add("hidden");const im=$("#imagePreview");im.removeAttribute("src");im.classList.add("hidden");$("#videoInfo").textContent="Nie dodano animacji ani obrazu.";}
 function resetProjectView(){
  if(projectNameSaveTimer){clearTimeout(projectNameSaveTimer);projectNameSaveTimer=null}
@@ -17,7 +17,7 @@ function resetProjectView(){
  $("#projectName").value="";$("#fade").value=8;$("#fadeVal").textContent="8";
  $("#tracks").textContent="Brak utworów w projekcie.";
  $("#duration").textContent="—";$("#makeAudio").disabled=true;$("#audioBar").style.width="0%";$("#audioProgressDetail").textContent="Oczekiwanie na rozpoczęcie składania mixu.";
- $("#audioStatus").textContent="Dodaj utwory, aby rozpocząć.";
+ 
  $("#downloadAudio").classList.add("hidden");$("#downloadAudio").disabled=true;
  $("#videoInfo").textContent="Nie dodano animacji ani obrazu.";
  $("#makeVideo").disabled=true;$("#videoBar").style.width="0%";$("#videoStatus").textContent="Najpierw utwórz mix MP3 i dodaj animację.";
@@ -66,7 +66,7 @@ $("#readyMixFile").addEventListener("change",async e=>{
  await put();
  renderTracks();
  await renderOutputs();
- $("#audioStatus").textContent="Wczytano gotowy mix MP3"+(duration?" · "+fmt(duration):"")+". Nie trzeba generować go ponownie.";
+ 
  $("#makeVideo").disabled=!(project.animation||project.stillImage);
  $("#projectStatus").textContent="Gotowy mix dodany do projektu.";
 });
@@ -86,7 +86,7 @@ $("#audioFiles").addEventListener("change",async e=>{
  }
  project.audioOutput=null;project.videoOutput=null;
  await put();renderTracks();
- $("#audioStatus").textContent=failed.length?`Dodano ${added}; nie udało się dodać: ${failed.join(", ")}`:`Dodano ${added} plików. Możesz zmienić ich kolejność.`;
+ 
 });
 
 async function loadLame(){if(window.lamejs)return;let s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js";document.head.append(s);await new Promise((ok,no)=>{s.onload=ok;s.onerror=()=>no(Error("Nie udało się pobrać kodera MP3. Połącz się z internetem i spróbuj ponownie."))});if(!window.lamejs)throw Error("Koder MP3 nie został uruchomiony.")}
@@ -96,7 +96,7 @@ $("#makeAudio").onclick=async()=>{
  const detail=(message)=>{$("#audioProgressDetail").textContent=message};
  const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
  try{
-  detail("Przygotowywanie kodera MP3…");$("#audioStatus").textContent="";
+  detail("Przygotowywanie kodera MP3…");
   await loadLame();if(!audioCtx)audioCtx=new AudioContext();
   let decoded=[];
   for(let i=0;i<project.tracks.length;i++){
@@ -131,8 +131,8 @@ $("#makeAudio").onclick=async()=>{
   let end=enc.flush();if(end.length)chunks.push(new Uint8Array(end));
   mp3Blob=new Blob(chunks,{type:"audio/mpeg"});project.audioOutput=mp3Blob;project.audioDuration=total/sr;
   await put();$("#audioBar").style.width="100%";detail("Zakończono — gotowy mix MP3 jest zapisany w projekcie.");
-  $("#audioStatus").textContent="Gotowe: "+fmt(total/sr)+", MP3 320 kb/s.";$("#downloadAudio").classList.remove("hidden");renderOutputs();
- }catch(e){detail("Wystąpił błąd podczas przetwarzania.");$("#audioStatus").textContent=e.message}
+  $("#downloadAudio").classList.remove("hidden");renderOutputs();
+ }catch(e){detail("Wystąpił błąd podczas przetwarzania.");detail(e.message)}
  finally{btn.disabled=false}
 };
 function setVideoPreview(file){if(animURL)URL.revokeObjectURL(animURL);animURL=URL.createObjectURL(file);let v=$("#preview");v.src=animURL;v.classList.remove("hidden");$("#imagePreview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · animacja zapisana w projekcie";$("#makeVideo").disabled=!project?.audioOutput}
