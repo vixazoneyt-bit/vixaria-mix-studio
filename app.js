@@ -16,7 +16,7 @@ function resetProjectView(){
  const im=$("#imagePreview");im.removeAttribute("src");im.classList.add("hidden");
  $("#projectName").value="";$("#fade").value=8;$("#fadeVal").textContent="8";
  $("#tracks").textContent="Brak utworów w projekcie.";
- $("#duration").textContent="—";$("#makeAudio").disabled=true;$("#audioBar").style.width="0%";$("#audioProgressDetail").textContent="Oczekiwanie na rozpoczęcie składania mixu.";
+ $("#duration").textContent="—";$("#makeAudio").disabled=true;$("#audioBar").style.width="0%";
  
  $("#downloadAudio").classList.add("hidden");$("#downloadAudio").disabled=true;
  $("#videoInfo").textContent="Nie dodano animacji ani obrazu.";
@@ -93,25 +93,25 @@ async function loadLame(){if(window.lamejs)return;let s=document.createElement("
 function peak(buf){let m=0;for(let c=0;c<buf.numberOfChannels;c++){let a=buf.getChannelData(c);for(let i=0;i<a.length;i+=128)m=Math.max(m,Math.abs(a[i]))}return m||1}
 $("#makeAudio").onclick=async()=>{
  const btn=$("#makeAudio");btn.disabled=true;$("#audioBar").style.width="1%";
- const detail=(message)=>{$("#audioProgressDetail").textContent=message};
+ 
  const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
  try{
-  detail("Przygotowywanie kodera MP3…");
+  
   await loadLame();if(!audioCtx)audioCtx=new AudioContext();
   let decoded=[];
   for(let i=0;i<project.tracks.length;i++){
    const track=project.tracks[i];
-   detail("Wczytywanie i analizowanie utworu "+(i+1)+"/"+project.tracks.length+": "+track.name);
+   
    $("#audioBar").style.width=(2+18*i/project.tracks.length)+"%";await yieldUI();
    decoded.push(await audioCtx.decodeAudioData(await track.file.arrayBuffer()));
   }
-  detail("Przygotowywanie przejść między utworami…");$("#audioBar").style.width="22%";await yieldUI();
+  $("#audioBar").style.width="22%";await yieldUI();
   const sr=decoded[0].sampleRate,fade=+project.fade,fadeSamples=decoded.slice(1).map((b,i)=>Math.round(Math.min(fade,decoded[i].duration/2,b.duration/2)*sr));
   let starts=[0];for(let i=1;i<decoded.length;i++)starts[i]=starts[i-1]+decoded[i-1].length-fadeSamples[i-1];
   let total=starts.at(-1)+decoded.at(-1).length,left=new Float32Array(total),right=new Float32Array(total);
   for(let i=0;i<decoded.length;i++){
    const b=decoded[i],l=b.getChannelData(0),r=b.numberOfChannels>1?b.getChannelData(1):l,start=starts[i],gain=Math.min(2,.88/peak(b));
-   detail("Łączenie utworu "+(i+1)+"/"+decoded.length+": "+project.tracks[i].name);
+   
    $("#audioBar").style.width=(22+28*i/decoded.length)+"%";await yieldUI();
    for(let k=0;k<b.length;k++){
     let g=gain;if(i>0&&k<fadeSamples[i-1])g*=Math.sin(k/fadeSamples[i-1]*Math.PI/2);
@@ -119,20 +119,20 @@ $("#makeAudio").onclick=async()=>{
     left[start+k]+=l[k]*g;right[start+k]+=r[k]*g;
    }
   }
-  detail("Kodowanie gotowego mixu do MP3 320 kb/s…");$("#audioBar").style.width="52%";await yieldUI();
+  $("#audioBar").style.width="52%";await yieldUI();
   let enc=new lamejs.Mp3Encoder(2,sr,320),chunks=[],block=1152;
   for(let i=0;i<total;i+=block){
    let n=Math.min(block,total-i),l=new Int16Array(n),r=new Int16Array(n);
    for(let j=0;j<n;j++){l[j]=Math.max(-32768,Math.min(32767,left[i+j]*32767));r[j]=Math.max(-32768,Math.min(32767,right[i+j]*32767))}
    let out=enc.encodeBuffer(l,r);if(out.length)chunks.push(new Uint8Array(out));
    const pct=i/total;$("#audioBar").style.width=(52+45*pct)+"%";
-   if(i%(block*100)===0){detail("Kodowanie MP3… "+Math.round(pct*100)+"% gotowe");await yieldUI()}
+   if(i%(block*100)===0){await yieldUI()}
   }
   let end=enc.flush();if(end.length)chunks.push(new Uint8Array(end));
   mp3Blob=new Blob(chunks,{type:"audio/mpeg"});project.audioOutput=mp3Blob;project.audioDuration=total/sr;
-  await put();$("#audioBar").style.width="100%";detail("Zakończono — gotowy mix MP3 jest zapisany w projekcie.");
+  await put();$("#audioBar").style.width="100%";
   $("#downloadAudio").classList.remove("hidden");renderOutputs();
- }catch(e){detail("Wystąpił błąd podczas przetwarzania.");detail(e.message)}
+ }catch(e){}
  finally{btn.disabled=false}
 };
 function setVideoPreview(file){if(animURL)URL.revokeObjectURL(animURL);animURL=URL.createObjectURL(file);let v=$("#preview");v.src=animURL;v.classList.remove("hidden");$("#imagePreview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · animacja zapisana w projekcie";$("#makeVideo").disabled=!project?.audioOutput}
