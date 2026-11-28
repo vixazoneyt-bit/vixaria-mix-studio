@@ -138,9 +138,9 @@ $("#makeAudio").onclick=async()=>{
   }
   let end=enc.flush();if(end.length)chunks.push(new Uint8Array(end));
   mp3Blob=new Blob(chunks,{type:"audio/mpeg"});project.audioOutput=mp3Blob;project.audioDuration=total/sr;
-  await put();$("#audioBar").style.width="100%";
+  await put();$("#audioBar").style.width="100%";$("#audioProgressLabel").textContent="Gotowy mix MP3 · 100%";
   $("#downloadAudio").classList.remove("hidden");renderOutputs();
- }catch(e){}
+ }catch(e){$("#audioProgressLabel").textContent="Błąd eksportu MP3: "+(e?.message||"spróbuj ponownie");}
  finally{btn.disabled=false}
 };
 function setVideoPreview(file){if(animURL)URL.revokeObjectURL(animURL);animURL=URL.createObjectURL(file);let v=$("#preview");v.src=animURL;v.classList.remove("hidden");$("#imagePreview").classList.add("hidden");$("#videoInfo").textContent=file.name+" · animacja zapisana w projekcie";$("#makeVideo").disabled=!project?.audioOutput}
