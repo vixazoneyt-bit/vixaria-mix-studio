@@ -71,9 +71,9 @@ $("#readyMixFile").addEventListener("change",async e=>{
  $("#projectStatus").textContent="Gotowy mix dodany do projektu.";
 });
 $("#audioFiles").addEventListener("change",async e=>{
- if(!project)newProject();
  const chosen=Array.from(e.target.files||[]);e.target.value="";
  if(!chosen.length)return;
+ if(!project)newProject();
  // Add the selected files to the project immediately; metadata reading must not delay the list.
  const startIndex=project.tracks.length;
  for(const f of chosen)project.tracks.push({name:f.name,file:f,duration:0});
