@@ -191,7 +191,8 @@ async function makeVideoFast(fileHandle){
   const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
   const c=canvas.getContext('2d',{alpha:false});if(!c)throw Error('Nie można utworzyć płótna Full HD.');
   if(!isStill)vSink=new CanvasSink(vTrack,{width:1920,height:1080,fit:'fill',poolSize:1});
-  const outputFps=24;\n  const vSource=new CanvasSource(canvas,{codec:'avc',quality:new Quality({bitrate:4000000}),hardwareAcceleration:'prefer-hardware',latencyMode:'quality',keyFrameInterval:2});
+  const outputFps=24;
+  const vSource=new CanvasSource(canvas,{codec:'avc',quality:new Quality({bitrate:4000000}),hardwareAcceleration:'prefer-hardware',latencyMode:'quality',keyFrameInterval:2});
   output.addVideoTrack(vSource,{frameRate:outputFps});output.addAudioTrack(aSource);
   await output.start();
   // Add compressed AAC audio before video so the muxer does not retain a long video track in memory.
