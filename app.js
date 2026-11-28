@@ -72,21 +72,19 @@ $("#readyMixFile").addEventListener("change",async e=>{
 });
 $("#audioFiles").addEventListener("change",async e=>{
  if(!project)newProject();
- const chosen=[...e.target.files];e.target.value="";
+ const chosen=Array.from(e.target.files||[]);e.target.value="";
  if(!chosen.length)return;
- $("#tracks").textContent="Dodawanie plików…";
- let added=0,failed=[];
- for(const f of chosen){
-  try{
-   const duration=await readDuration(f);
-   project.tracks.push({name:f.name,file:f,duration});
-   added++;
-   $("#tracks").textContent=`Dodano ${added} z ${chosen.length} plików…`;
-  }catch(err){failed.push(f.name)}
- }
- project.audioOutput=null;project.videoOutput=null;
- await put();renderTracks();
- 
+ // Add the selected files to the project immediately; metadata reading must not delay the list.
+ const startIndex=project.tracks.length;
+ for(const f of chosen)project.tracks.push({name:f.name,file:f,duration:0});
+ project.audioOutput=null;project.audioDownloaded=false;project.videoOutput=null;project.videoSaved=false;
+ renderTracks();updateStepChecks();await put();
+ // Read durations in the background and refresh each row as soon as its metadata is available.
+ await Promise.all(chosen.map(async(f,i)=>{
+  try{project.tracks[startIndex+i].duration=await readDuration(f)}
+  catch(err){project.tracks[startIndex+i].duration=0}
+ }));
+ renderTracks();await put();
 });
 
 async function loadLame(){if(window.lamejs)return;let s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js";document.head.append(s);await new Promise((ok,no)=>{s.onload=ok;s.onerror=()=>no(Error("Nie udało się pobrać kodera MP3. Połącz się z internetem i spróbuj ponownie."))});if(!window.lamejs)throw Error("Koder MP3 nie został uruchomiony.")}
