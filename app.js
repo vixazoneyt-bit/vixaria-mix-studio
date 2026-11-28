@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s);
+const $=s=>document.querySelector(s);let appReady;
 const DB="vixaria-studio-db",STORE="projects";let db,project=null,mp3Blob=null,videoBlob=null,animURL=null,imageURL=null,audioCtx=null,projectNameSaveTimer=null;const deletedProjectIds=new Set();
 const req=(r)=>new Promise((ok,no)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 function openDB(){return new Promise((ok,no)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:"id"});r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
@@ -75,6 +75,8 @@ $("#audioFiles").addEventListener("change",async e=>{
  const chosen=Array.from(input.files||[]);
  if(!chosen.length)return;
  input.value="";
+ // Wait for IndexedDB initialization before creating or saving the first project.
+ try{await appReady}catch(err){alert("Nie udało się uruchomić pamięci projektów. Odśwież aplikację i spróbuj ponownie.");return}
  // Create the project directly here to avoid racing the asynchronous newProject() save.
  if(!project){
   project={id:crypto.randomUUID(),name:"Nowy mix",tracks:[],fade:8,normalize:true,bitrate:320,animation:null,stillImage:null,audioOutput:null,videoOutput:null,audioDownloaded:false,videoSaved:false,videoDownloaded:false};
@@ -266,4 +268,4 @@ function downloadAndClear(key,name){
 }
 $("#downloadAudio").onclick=()=>downloadAndClear("audioOutput",project.name+".mp3");$("#downloadVideo").onclick=()=>downloadAndClear("videoOutput",project.name+".mp4");
 async function init(){db=await openDB();let ps=await allProjects();if(ps.length)await loadProject(ps.sort((a,b)=>b.updated-a.updated)[0]);else resetProjectView();await renderProjects()}
-if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.warn));init().catch(e=>alert("Błąd pamięci lokalnej: "+e.message));
+if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.warn));appReady=init().catch(e=>{alert("Błąd pamięci lokalnej: "+e.message);throw e});
