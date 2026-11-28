@@ -71,20 +71,28 @@ $("#readyMixFile").addEventListener("change",async e=>{
  $("#projectStatus").textContent="Gotowy mix dodany do projektu.";
 });
 $("#audioFiles").addEventListener("change",async e=>{
- const chosen=Array.from(e.target.files||[]);e.target.value="";
+ const input=e.currentTarget;
+ const chosen=Array.from(input.files||[]);
  if(!chosen.length)return;
- if(!project)newProject();
- // Add the selected files to the project immediately; metadata reading must not delay the list.
- const startIndex=project.tracks.length;
- for(const f of chosen)project.tracks.push({name:f.name,file:f,duration:0});
- project.audioOutput=null;project.audioDownloaded=false;project.videoOutput=null;project.videoSaved=false;
- renderTracks();updateStepChecks();await put();
- // Read durations in the background and refresh each row as soon as its metadata is available.
- await Promise.all(chosen.map(async(f,i)=>{
-  try{project.tracks[startIndex+i].duration=await readDuration(f)}
-  catch(err){project.tracks[startIndex+i].duration=0}
+ input.value="";
+ // Create the project directly here to avoid racing the asynchronous newProject() save.
+ if(!project){
+  project={id:crypto.randomUUID(),name:"Nowy mix",tracks:[],fade:8,normalize:true,bitrate:320,animation:null,stillImage:null,audioOutput:null,videoOutput:null,audioDownloaded:false,videoSaved:false,videoDownloaded:false};
+  $("#projectName").value=project.name;
+  $("#fade").value=8;$("#fadeVal").textContent="8";
+ }
+ const activeProject=project;
+ const added=chosen.map(file=>({name:file.name,file,duration:0}));
+ activeProject.tracks.push(...added);
+ activeProject.audioOutput=null;activeProject.audioDownloaded=false;activeProject.videoOutput=null;activeProject.videoSaved=false;
+ // Show selected tracks immediately, before reading metadata or saving to IndexedDB.
+ renderTracks();updateStepChecks();
+ await put();
+ // Read durations against the actual track objects, not array positions that may change.
+ await Promise.all(added.map(async track=>{
+  try{track.duration=await readDuration(track.file)}catch(err){track.duration=0}
  }));
- renderTracks();await put();
+ if(project===activeProject){renderTracks();await put()}
 });
 
 async function loadLame(){if(window.lamejs)return;let s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js";document.head.append(s);await new Promise((ok,no)=>{s.onload=ok;s.onerror=()=>no(Error("Nie udało się pobrać kodera MP3. Połącz się z internetem i spróbuj ponownie."))});if(!window.lamejs)throw Error("Koder MP3 nie został uruchomiony.")}
